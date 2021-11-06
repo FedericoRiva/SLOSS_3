@@ -303,6 +303,328 @@ for (i in 1:length(list_sampled_data)){
   }
 }
 
+
+
+
+## ELE analysis
+#### sloss function from Lexiguel
+sloss <- function(table, env=data.frame(), area) {
+  if(!is.matrix(table)) table <- as.matrix(table)
+  area <- substitute(area)
+  area <- eval(area, env, parent.frame())
+  SLOSS <- list(SL=list(), LS=list())
+  # First the calculation from small to large
+  SLOSS$SL$area <- c(0, cumsum(area[order(area)]))
+  Flor <- apply(table[order(area),], 2, cumsum)
+  Flor[Flor > 0] <- 1
+  SLOSS$SL$species <- c(0, apply(Flor, 1, sum))
+  # Now the calculation from large to small
+  SLOSS$LS$area <- c(0, cumsum(area[order(area, decreasing=TRUE)]))
+  Flor <- apply(table[order(area, decreasing=TRUE),], 2, cumsum)
+  Flor[Flor > 0] <- 1
+  SLOSS$LS$species <- c(0, apply(Flor, 1, sum))
+  # Calculation of SLOSS index
+  SLOSS$Index <- with(SLOSS$SL, curve_area(area,
+                                           species))/with(SLOSS$LS, curve_area(area, species))
+  # Final object
+  class(SLOSS) <- c("SLOSS","list")
+  return(SLOSS)
+}
+
+curve_area <- function(x, y, bottom=0) {
+  D1 <- c(diff(x))
+  D2 <- c(diff(y))
+  Area <- sum(D1*((y - bottom)[-length(y)]) + D1*D2/2, na.rm=TRUE)
+  return(Area)
+}
+
+
+# edited from original function in Lexiguel to include points
+plot.SLOSS <- function(x, y=NULL, sl.lty=2, sl.lwd=1, sl.col="black", ls.lty=1,
+                       ls.lwd=1, ls.col="black", show.index=TRUE, digits.index=2, cex.index=1,
+                       pos.index=c(0.05,0.95), show.legend=FALSE, pos.legend="bottomright",
+                       bty.legend="o", main="SLOSS curves",...) {
+  with(x$SL, plot(area, species, type="l", lty=sl.lty, lwd=sl.lwd, col=sl.col,
+                  main=main, ...))
+  with(x$LS, lines(area, species, lty=ls.lty, lwd=ls.lwd, col=ls.col))
+  
+  with(x$SL, points(area, species, pch = 18, cex = 1))
+  with(x$LS, points(area, species, pch = 18, cex = 1))
+  
+  if(show.legend) {
+    legend(pos.legend, lty=c(sl.lty,ls.lty), lwd=c(sl.lwd,ls.lwd),
+           legend=c("small to large","large to small"), bty=bty.legend)
+  }
+  if(show.index) {
+    with(x$SL, text(max(area)*pos.index[1], max(species)*pos.index[2],
+                    labels=paste("SLOSS-index =",
+                                 round(x$Index, digits.index)),
+                    cex=cex.index, pos=4))
+  }
+}
+
+
+
+
+# 
+INPUT <- list_sampled_data[[10]][74][[1]]
+
+SL_OR_SS <- function(INPUT) {
+  
+  table_sloss <- as.matrix(INPUT)
+  area_sloss <-   table_sloss[,ncol(table_sloss)]
+  
+  table_sloss <- table_sloss[, - c(1, ncol(table_sloss))]
+  sloss_comparison <- sloss(table_sloss, area = area_sloss)
+  
+  # sl <- approx(sloss_comparison$SL$area, 
+  #              sloss_comparison$SL$species, 
+  #              xout = seq(from = as.numeric(min(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100), 
+  #              method = "linear")
+  # 
+  # ls <- approx(sloss_comparison$LS$area, 
+  #              sloss_comparison$LS$species, 
+  #              xout = seq(from = as.numeric(min(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100), 
+  #              method = "linear")
+  
+  sl <- approx(sloss_comparison$SL$area,
+               sloss_comparison$SL$species,
+               xout = seq(from = as.numeric(max(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100),
+               method = "linear")
+  
+  ls <- approx(sloss_comparison$LS$area,
+               sloss_comparison$LS$species,
+               xout = seq(from = as.numeric(max(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100),
+               method = "linear")
+  
+  plot.SLOSS(sloss_comparison, show.index = F)
+  points(ls, col = "blue")
+  points(sl, col = "red")
+  
+  comparison_sloss <- as.data.frame(t(rbind(ls$y, sl$y)))
+  
+  comparison_sloss$outcome <- comparison_sloss$V1 - comparison_sloss$V2 # V1 is LS
+  
+  outcome <- if (all(comparison_sloss$outcome > 0)){
+    print("SL > SS")
+  } else {
+    if (all(comparison_sloss$outcome < 0)){print("SS > SL")
+    } else {
+      print("SS = SL")
+    }
+  }
+  
+  #return(outcome)
+}
+
+SL_OR_SS(list_sampled_data[[88]][7][[1]]) # first number simulations from 1 to 100, second number dataset from 1 to 75
+
+## ELE study
+
+
+ELE_data <- list_sampled_data
+
+
+for (i in 1:length(ELE_data)){
+  for (j in 1: length(ELE_data[[i]])){
+    
+    ELE_data[[i]][j][[1]] <- SL_OR_SS(ELE_data[[i]][j][[1]])
+    
+  }
+}
+
+study_names <- names(ELE_data[[1]])
+
+
+for (i in 1:length(ELE_data)){
+  ELE_data[[i]] <- do.call(rbind.data.frame, ELE_data[[i]])
+}
+
+for (i in 1:length(ELE_data)){
+  colnames(ELE_data[[i]]) <- "comparison"
+}
+
+ele_data_analysis <- do.call(rbind.data.frame, ELE_data)
+ele_data_analysis$dataset_id <- rep(study_names, 100)
+
+
+ele_data_analysis <- merge(ele_data_analysis, metadata, by = "dataset_id")
+table(ele_data_analysis$comparison)
+table(ele_data_analysis$taxa)
+
+# only 45 studyes give SL > SS
+
+ele_data_analysis$SS <- as.factor(ele_data_analysis$comparison)
+levels(ele_data_analysis$SS)
+
+levels(ele_data_analysis$SS)[match("SL > SS",levels(ele_data_analysis$SS))] <- "0"
+levels(ele_data_analysis$SS)[match("SS = SL",levels(ele_data_analysis$SS))] <- "0"
+levels(ele_data_analysis$SS)[match("SS > SL",levels(ele_data_analysis$SS))] <- "1"
+
+
+
+
+ele_data_analysis$SL <- as.factor(ele_data_analysis$comparison)
+levels(ele_data_analysis$SL)
+
+levels(ele_data_analysis$SL)[match("SL > SS",levels(ele_data_analysis$SL))] <- "1"
+levels(ele_data_analysis$SL)[match("SS = SL",levels(ele_data_analysis$SL))] <- "0"
+levels(ele_data_analysis$SL)[match("SS > SL",levels(ele_data_analysis$SL))] <- "0"
+
+
+
+ele_data_analysis$dataset_id <- as.factor(ele_data_analysis$dataset_id)
+ele_data_analysis$sphere.fragment <- as.factor(ele_data_analysis$sphere.fragment)
+ele_data_analysis$sphere.matrix <- as.factor(ele_data_analysis$sphere.matrix)
+ele_data_analysis$biome <- as.factor(ele_data_analysis$biome)
+ele_data_analysis$taxa <- as.factor(ele_data_analysis$taxa)
+ele_data_analysis$time.since.fragmentation <- as.factor(ele_data_analysis$time.since.fragmentation)
+ele_data_analysis$Matrix.category <- as.factor(ele_data_analysis$Matrix.category)
+
+
+# calculate patch size evenness for every study
+evenness <- list()
+for (i in 1: length(list_patches)){
+  evenness[[i]] <- (vegan::diversity(list_patches[[i]]$frag_size_num))/log(length(list_patches[[i]]$frag_size_num))
+}
+
+evenness <- do.call(rbind.data.frame, evenness)
+evenness$dataset_id <- study_names
+colnames(evenness) <- c("evenness", "dataset_id")
+
+ele_data_analysis <- merge(ele_data_analysis, evenness, by = "dataset_id")
+
+# calculate species richness for every study
+richness <- list()
+for (i in 1: length(list_patches)){
+  richness[[i]] <- length(table(list_assemblages[[i]]$species))
+}
+
+richness <- do.call(rbind.data.frame, richness)
+richness$dataset_id <- study_names
+colnames(richness) <- c("richness", "dataset_id")
+
+ele_data_analysis <- merge(ele_data_analysis, richness, by = "dataset_id")
+
+# add ectothermic vs endothermic
+ele_data_analysis$temperature <- ele_data_analysis$taxa
+
+levels(ele_data_analysis$temperature)[match("amphibians & reptiles",levels(ele_data_analysis$temperature))] <- "ectotherm"
+levels(ele_data_analysis$temperature)[match("birds",levels(ele_data_analysis$temperature))] <- "endotherm"
+levels(ele_data_analysis$temperature)[match("invertebrates",levels(ele_data_analysis$temperature))] <- "ectotherm"
+levels(ele_data_analysis$temperature)[match("mammals",levels(ele_data_analysis$temperature))] <- "endotherm"
+levels(ele_data_analysis$temperature)[match("plants",levels(ele_data_analysis$temperature))] <- "ectotherm"
+
+
+# add verts vs inv
+ele_data_analysis$vert <- ele_data_analysis$taxa
+
+levels(ele_data_analysis$vert)[match("amphibians & reptiles",levels(ele_data_analysis$vert))] <- "vert"
+levels(ele_data_analysis$vert)[match("birds",levels(ele_data_analysis$vert))] <- "vert"
+levels(ele_data_analysis$vert)[match("invertebrates",levels(ele_data_analysis$vert))] <- "invert"
+levels(ele_data_analysis$vert)[match("mammals",levels(ele_data_analysis$vert))] <- "vert"
+levels(ele_data_analysis$vert)[match("plants",levels(ele_data_analysis$vert))] <- "plant"
+
+# add whether a taxon flies or not
+ele_data_analysis$group <- c("bees", "bees", "lizards","orthoptera", "lepidoptera",
+                             "frogs","lizards","lepidoptera", "birds", "bats", 
+                             "mammals", "spiders", "bees", "bees", "amphibians",
+                             "plants", "plants", "birds", "ants", "termites",
+                             "mammals", "birds", "birds", "mammals", "beetles",
+                             "beetles","mammals", "spiders", "spiders","spiders",
+                             "mammals", "plants", "plants", "plants", "birds",
+                             "bats", "spiders", "bees", "beetles", "birds",
+                             "spiders", "snails", "beetles", "spiders", "mammals",
+                             "amphibians","amphibians","reptiles","birds","birds",
+                             "birds", "bats", "beetles", "bees", "spiders",
+                             "orthoptera","beetles", "beetles","frogs", "snails",
+                             "plants","bees", "plants","plants","bees",
+                             "lepidoptera","mammals","lepidoptera","bats","birds",
+                             "lepidoptera", "ants", "beetles", "reptiles", "lepidoptera")
+
+
+ele_data_analysis$fly <- c("fly", "fly", "no_fly","fly", "fly",
+                           "no_fly","no_fly","fly", "fly", "fly", 
+                           "no_fly", "no_fly", "fly", "fly", "no_fly",
+                           "plants", "plants", "fly", "fly", "fly",
+                           "no_fly", "fly", "fly", "no_fly", "fly",
+                           "fly","no_fly", "no_fly", "no_fly","no_fly",
+                           "no_fly", "plants", "plants", "plants", "fly",
+                           "fly", "no_fly", "fly", "fly", "fly",
+                           "no_fly", "no_fly", "fly", "no_fly", "no_fly",
+                           "no_fly","no_fly","no_fly","fly","fly",
+                           "fly", "fly", "fly", "fly", "no_fly",
+                           "fly","fly", "fly","no_fly", "no_fly",
+                           "plants","fly", "plants","plants","fly",
+                           "fly","no_fly","fly","fly","fly",
+                           "fly", "fly", "fly", "no_fly", "fly")
+
+ele_data_analysis$animal <- c("animal", "animal", "animal","animal", "animal",
+                              "animal","animal","animal", "animal", "animal", 
+                              "animal", "animal", "animal", "animal", "animal",
+                              "plants", "plants", "animal", "animal", "animal",
+                              "animal", "animal", "animal", "animal", "animal",
+                              "animal","animal", "animal", "animal","animal",
+                              "animal", "plants", "plants", "plants", "animal",
+                              "animal", "animal", "animal", "animal", "animal",
+                              "animal", "animal", "animal", "animal", "animal",
+                              "animal","animal","animal","animal","animal",
+                              "animal", "animal", "animal", "animal", "animal",
+                              "animal","animal", "animal","animal", "animal",
+                              "plants","animal", "plants","plants","animal",
+                              "animal","animal","animal","animal","animal",
+                              "animal", "animal", "animal", "animal", "animal")
+
+ele_data_analysis$log10rich <- log10(ele_data_analysis$richness)
+
+# Edwards 2010 is BIRDS, not PLANTS
+
+# models
+library(glmmTMB)
+library(effects)
+
+
+model <- glmmTMB(SS ~ 
+                   #animal +
+                   #vert +
+                   #taxa +
+                   #group +
+                   #fly +
+                   log10rich +
+                   #richness +
+                   #temperature +
+                   evenness + 
+                   #sphere.fragment + 
+                   #sphere.matrix + 
+                   #time.since.fragmentation + 
+                   #Matrix.category + 
+                   #biome + 
+                   #(1|temperature/taxa)+
+                   #(1|taxa) +
+                   (1|dataset_id), 
+                 data = ele_data_analysis, family = "binomial")
+summary(model)
+AIC(model)
+#plot(model)
+
+#plot(allEffects(model), type = "response")
+plot_model <- ggpredict(model, 
+                        c("evenness [all]", "log10rich [1, 1.5, 2]" ),
+                        type = "re"
+) 
+
+plot(plot_model) + 
+  labs(
+    x = "Patch size evenness", 
+    y = "Probability of SS > SL", 
+    title = ""  ) + 
+  labs(colour = "Log10(species richness)")
+
+table(ele_data_analysis$comparison, ele_data_analysis$taxa)
+
+
+
+
 # ####################################################################################
 # ####################################################################################
 # ##
@@ -621,320 +943,3 @@ for (i in 1:length(list_sampled_data)){
 # ################################################################################################################################################################################################################
 # ########################################################################################################
 # ########################################################################################################
-
-
-## ELE analysis
-#### sloss function from Lexiguel
-sloss <- function(table, env=data.frame(), area) {
-  if(!is.matrix(table)) table <- as.matrix(table)
-  area <- substitute(area)
-  area <- eval(area, env, parent.frame())
-  SLOSS <- list(SL=list(), LS=list())
-  # First the calculation from small to large
-  SLOSS$SL$area <- c(0, cumsum(area[order(area)]))
-  Flor <- apply(table[order(area),], 2, cumsum)
-  Flor[Flor > 0] <- 1
-  SLOSS$SL$species <- c(0, apply(Flor, 1, sum))
-  # Now the calculation from large to small
-  SLOSS$LS$area <- c(0, cumsum(area[order(area, decreasing=TRUE)]))
-  Flor <- apply(table[order(area, decreasing=TRUE),], 2, cumsum)
-  Flor[Flor > 0] <- 1
-  SLOSS$LS$species <- c(0, apply(Flor, 1, sum))
-  # Calculation of SLOSS index
-  SLOSS$Index <- with(SLOSS$SL, curve_area(area,
-                                           species))/with(SLOSS$LS, curve_area(area, species))
-  # Final object
-  class(SLOSS) <- c("SLOSS","list")
-  return(SLOSS)
-}
-
-curve_area <- function(x, y, bottom=0) {
-  D1 <- c(diff(x))
-  D2 <- c(diff(y))
-  Area <- sum(D1*((y - bottom)[-length(y)]) + D1*D2/2, na.rm=TRUE)
-  return(Area)
-}
-
-
-# edited from original function in Lexiguel to include points
-plot.SLOSS <- function(x, y=NULL, sl.lty=2, sl.lwd=1, sl.col="black", ls.lty=1,
-                       ls.lwd=1, ls.col="black", show.index=TRUE, digits.index=2, cex.index=1,
-                       pos.index=c(0.05,0.95), show.legend=FALSE, pos.legend="bottomright",
-                       bty.legend="o", main="SLOSS curves",...) {
-  with(x$SL, plot(area, species, type="l", lty=sl.lty, lwd=sl.lwd, col=sl.col,
-                  main=main, ...))
-  with(x$LS, lines(area, species, lty=ls.lty, lwd=ls.lwd, col=ls.col))
-  
-  with(x$SL, points(area, species, pch = 18, cex = 1))
-  with(x$LS, points(area, species, pch = 18, cex = 1))
-  
-  if(show.legend) {
-    legend(pos.legend, lty=c(sl.lty,ls.lty), lwd=c(sl.lwd,ls.lwd),
-           legend=c("small to large","large to small"), bty=bty.legend)
-  }
-  if(show.index) {
-    with(x$SL, text(max(area)*pos.index[1], max(species)*pos.index[2],
-                    labels=paste("SLOSS-index =",
-                                 round(x$Index, digits.index)),
-                    cex=cex.index, pos=4))
-  }
-}
-
-
-
-
-# 
-INPUT <- list_sampled_data[[10]][74][[1]]
-
-SL_OR_SS <- function(INPUT) {
-  
-  table_sloss <- as.matrix(INPUT)
-  area_sloss <-   table_sloss[,ncol(table_sloss)]
-  
-  table_sloss <- table_sloss[, - c(1, ncol(table_sloss))]
-  sloss_comparison <- sloss(table_sloss, area = area_sloss)
-  
-  # sl <- approx(sloss_comparison$SL$area, 
-  #              sloss_comparison$SL$species, 
-  #              xout = seq(from = as.numeric(min(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100), 
-  #              method = "linear")
-  # 
-  # ls <- approx(sloss_comparison$LS$area, 
-  #              sloss_comparison$LS$species, 
-  #              xout = seq(from = as.numeric(min(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100), 
-  #              method = "linear")
-  
-  sl <- approx(sloss_comparison$SL$area,
-               sloss_comparison$SL$species,
-               xout = seq(from = as.numeric(max(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100),
-               method = "linear")
-  
-  ls <- approx(sloss_comparison$LS$area,
-               sloss_comparison$LS$species,
-               xout = seq(from = as.numeric(max(area_sloss)), to = (max(sloss_comparison$SL$area) - as.numeric(max(area_sloss))), length.out = 100),
-               method = "linear")
-  
-  plot.SLOSS(sloss_comparison, show.index = F)
-  points(ls, col = "blue")
-  points(sl, col = "red")
-  
-  comparison_sloss <- as.data.frame(t(rbind(ls$y, sl$y)))
-  
-  comparison_sloss$outcome <- comparison_sloss$V1 - comparison_sloss$V2 # V1 is LS
-  
-  outcome <- if (all(comparison_sloss$outcome > 0)){
-    print("SL > SS")
-  } else {
-    if (all(comparison_sloss$outcome < 0)){print("SS > SL")
-    } else {
-      print("SS = SL")
-    }
-  }
-  
-  #return(outcome)
-}
-
-SL_OR_SS(list_sampled_data[[88]][7][[1]]) # first number simulations from 1 to 100, second number dataset from 1 to 75
-
-## ELE study
-
-
-ELE_data <- list_sampled_data
-
-
-for (i in 1:length(ELE_data)){
-  for (j in 1: length(ELE_data[[i]])){
-    
-    ELE_data[[i]][j][[1]] <- SL_OR_SS(ELE_data[[i]][j][[1]])
-    
-  }
-}
-
-study_names <- names(ELE_data[[1]])
-
-
-for (i in 1:length(ELE_data)){
-  ELE_data[[i]] <- do.call(rbind.data.frame, ELE_data[[i]])
-}
-
-for (i in 1:length(ELE_data)){
-  colnames(ELE_data[[i]]) <- "comparison"
-}
-
-ele_data_analysis <- do.call(rbind.data.frame, ELE_data)
-ele_data_analysis$dataset_id <- rep(study_names, 100)
-
-
-ele_data_analysis <- merge(ele_data_analysis, metadata, by = "dataset_id")
-table(ele_data_analysis$comparison)
-table(ele_data_analysis$taxa)
-
-# only 45 studyes give SL > SS
-
-ele_data_analysis$SS <- as.factor(ele_data_analysis$comparison)
-levels(ele_data_analysis$SS)
-
-levels(ele_data_analysis$SS)[match("SL > SS",levels(ele_data_analysis$SS))] <- "0"
-levels(ele_data_analysis$SS)[match("SS = SL",levels(ele_data_analysis$SS))] <- "0"
-levels(ele_data_analysis$SS)[match("SS > SL",levels(ele_data_analysis$SS))] <- "1"
-
-
-
-
-ele_data_analysis$SL <- as.factor(ele_data_analysis$comparison)
-levels(ele_data_analysis$SL)
-
-levels(ele_data_analysis$SL)[match("SL > SS",levels(ele_data_analysis$SL))] <- "1"
-levels(ele_data_analysis$SL)[match("SS = SL",levels(ele_data_analysis$SL))] <- "0"
-levels(ele_data_analysis$SL)[match("SS > SL",levels(ele_data_analysis$SL))] <- "0"
-
-
-
-ele_data_analysis$dataset_id <- as.factor(ele_data_analysis$dataset_id)
-ele_data_analysis$sphere.fragment <- as.factor(ele_data_analysis$sphere.fragment)
-ele_data_analysis$sphere.matrix <- as.factor(ele_data_analysis$sphere.matrix)
-ele_data_analysis$biome <- as.factor(ele_data_analysis$biome)
-ele_data_analysis$taxa <- as.factor(ele_data_analysis$taxa)
-ele_data_analysis$time.since.fragmentation <- as.factor(ele_data_analysis$time.since.fragmentation)
-ele_data_analysis$Matrix.category <- as.factor(ele_data_analysis$Matrix.category)
-
-
-# calculate patch size evenness for every study
-evenness <- list()
-for (i in 1: length(list_patches)){
-  evenness[[i]] <- (vegan::diversity(list_patches[[i]]$frag_size_num))/log(length(list_patches[[i]]$frag_size_num))
-}
-
-evenness <- do.call(rbind.data.frame, evenness)
-evenness$dataset_id <- study_names
-colnames(evenness) <- c("evenness", "dataset_id")
-
-ele_data_analysis <- merge(ele_data_analysis, evenness, by = "dataset_id")
-
-# calculate species richness for every study
-richness <- list()
-for (i in 1: length(list_patches)){
-  richness[[i]] <- length(table(list_assemblages[[i]]$species))
-}
-
-richness <- do.call(rbind.data.frame, richness)
-richness$dataset_id <- study_names
-colnames(richness) <- c("richness", "dataset_id")
-
-ele_data_analysis <- merge(ele_data_analysis, richness, by = "dataset_id")
-
-# add ectothermic vs endothermic
-ele_data_analysis$temperature <- ele_data_analysis$taxa
-
-levels(ele_data_analysis$temperature)[match("amphibians & reptiles",levels(ele_data_analysis$temperature))] <- "ectotherm"
-levels(ele_data_analysis$temperature)[match("birds",levels(ele_data_analysis$temperature))] <- "endotherm"
-levels(ele_data_analysis$temperature)[match("invertebrates",levels(ele_data_analysis$temperature))] <- "ectotherm"
-levels(ele_data_analysis$temperature)[match("mammals",levels(ele_data_analysis$temperature))] <- "endotherm"
-levels(ele_data_analysis$temperature)[match("plants",levels(ele_data_analysis$temperature))] <- "ectotherm"
-
-
-# add verts vs inv
-ele_data_analysis$vert <- ele_data_analysis$taxa
-
-levels(ele_data_analysis$vert)[match("amphibians & reptiles",levels(ele_data_analysis$vert))] <- "vert"
-levels(ele_data_analysis$vert)[match("birds",levels(ele_data_analysis$vert))] <- "vert"
-levels(ele_data_analysis$vert)[match("invertebrates",levels(ele_data_analysis$vert))] <- "invert"
-levels(ele_data_analysis$vert)[match("mammals",levels(ele_data_analysis$vert))] <- "vert"
-levels(ele_data_analysis$vert)[match("plants",levels(ele_data_analysis$vert))] <- "plant"
-
-# add whether a taxon flies or not
-ele_data_analysis$group <- c("bees", "bees", "lizards","orthoptera", "lepidoptera",
-                             "frogs","lizards","lepidoptera", "birds", "bats", 
-                             "mammals", "spiders", "bees", "bees", "amphibians",
-                             "plants", "plants", "birds", "ants", "termites",
-                             "mammals", "birds", "birds", "mammals", "beetles",
-                             "beetles","mammals", "spiders", "spiders","spiders",
-                             "mammals", "plants", "plants", "plants", "birds",
-                             "bats", "spiders", "bees", "beetles", "birds",
-                             "spiders", "snails", "beetles", "spiders", "mammals",
-                             "amphibians","amphibians","reptiles","birds","birds",
-                             "birds", "bats", "beetles", "bees", "spiders",
-                             "orthoptera","beetles", "beetles","frogs", "snails",
-                             "plants","bees", "plants","plants","bees",
-                             "lepidoptera","mammals","lepidoptera","bats","birds",
-                             "lepidoptera", "ants", "beetles", "reptiles", "lepidoptera")
-
-
-ele_data_analysis$fly <- c("fly", "fly", "no_fly","fly", "fly",
-                           "no_fly","no_fly","fly", "fly", "fly", 
-                           "no_fly", "no_fly", "fly", "fly", "no_fly",
-                           "plants", "plants", "fly", "fly", "fly",
-                           "no_fly", "fly", "fly", "no_fly", "fly",
-                           "fly","no_fly", "no_fly", "no_fly","no_fly",
-                           "no_fly", "plants", "plants", "plants", "fly",
-                           "fly", "no_fly", "fly", "fly", "fly",
-                           "no_fly", "no_fly", "fly", "no_fly", "no_fly",
-                           "no_fly","no_fly","no_fly","fly","fly",
-                           "fly", "fly", "fly", "fly", "no_fly",
-                           "fly","fly", "fly","no_fly", "no_fly",
-                           "plants","fly", "plants","plants","fly",
-                           "fly","no_fly","fly","fly","fly",
-                           "fly", "fly", "fly", "no_fly", "fly")
-
-ele_data_analysis$animal <- c("animal", "animal", "animal","animal", "animal",
-                              "animal","animal","animal", "animal", "animal", 
-                              "animal", "animal", "animal", "animal", "animal",
-                              "plants", "plants", "animal", "animal", "animal",
-                              "animal", "animal", "animal", "animal", "animal",
-                              "animal","animal", "animal", "animal","animal",
-                              "animal", "plants", "plants", "plants", "animal",
-                              "animal", "animal", "animal", "animal", "animal",
-                              "animal", "animal", "animal", "animal", "animal",
-                              "animal","animal","animal","animal","animal",
-                              "animal", "animal", "animal", "animal", "animal",
-                              "animal","animal", "animal","animal", "animal",
-                              "plants","animal", "plants","plants","animal",
-                              "animal","animal","animal","animal","animal",
-                              "animal", "animal", "animal", "animal", "animal")
-
-ele_data_analysis$log10rich <- log10(ele_data_analysis$richness)
-
-# Edwards 2010 is BIRDS, not PLANTS
-
-# models
-library(glmmTMB)
-library(effects)
-
-
-model <- glmmTMB(SS ~ 
-                   #animal +
-                   #vert +
-                   #taxa +
-                   #group +
-                   #fly +
-                   log10rich +
-                   #richness +
-                   #temperature +
-                   evenness + 
-                   #sphere.fragment + 
-                   #sphere.matrix + 
-                   #time.since.fragmentation + 
-                   #Matrix.category + 
-                   #biome + 
-                   #(1|temperature/taxa)+
-                   #(1|taxa) +
-                   (1|dataset_id), 
-                 data = ele_data_analysis, family = "binomial")
-summary(model)
-AIC(model)
-#plot(model)
-
-#plot(allEffects(model), type = "response")
-plot_model <- ggpredict(model, 
-                        c("evenness [all]", "log10rich [1, 1.5, 2]" ),
-                        type = "re"
-) 
-
-plot(plot_model) + 
-  labs(
-    x = "Patch size evenness", 
-    y = "Probability of SS > SL", 
-    title = ""  ) + 
-  labs(colour = "Log10(species richness)")
-
-table(ele_data_analysis$comparison, ele_data_analysis$taxa)
