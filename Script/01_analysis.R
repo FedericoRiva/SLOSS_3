@@ -922,6 +922,7 @@ model <- glmmTMB(SS ~
                  data = ele_data_analysis, family = "binomial")
 summary(model)
 AIC(model)
+#plot(model)
 
 #plot(allEffects(model), type = "response")
 plot_model <- ggpredict(model, 
