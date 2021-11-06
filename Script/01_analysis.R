@@ -620,7 +620,7 @@ plot(plot_model) +
     title = ""  ) + 
   labs(colour = "Log10(species richness)")
 
-table(ele_data_analysis$comparison, ele_data_analysis$taxa)
+#table(ele_data_analysis$comparison, ele_data_analysis$taxa)
 
 
 
