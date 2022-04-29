@@ -45,6 +45,7 @@ metadata_original = fread("C:\\Users\\feder\\OneDrive\\Desktop\\Riva Fahrig SLOS
 metadata$dataset_id <- as.factor(metadata$dataset_id)
 data$dataset_label <- as.factor(data$dataset_label)
 
+
 papers_reassessment = fread("C:\\Users\\feder\\OneDrive\\Desktop\\Riva Fahrig SLOSS #2\\data\\papers_reassessment.csv", header = TRUE)
 papers_reassessment_filter <- papers_reassessment[,c(2,3)]
 #data$frag_id <- as.factor(data$frag_id)
@@ -525,13 +526,16 @@ for (i in 1:length(ELE_data)){
 ele_data_analysis <- do.call(rbind.data.frame, ELE_data)
 ele_data_analysis$dataset_id <- rep(study_names, 100)
 
+## correct Edwards 2010, from plants to birds
+metadata[35,14] <- metadata[9,14]
+
 
 ele_data_analysis <- merge(ele_data_analysis, metadata, by = "dataset_id")
 
 # check proportion of SLOSS comparisons
 n_dataset <- table(ele_data_analysis$taxa)/100
 n_comparisons <- table(ele_data_analysis$taxa, ele_data_analysis$comparison)/100
-# SL > SS, SS + SL, SS > SL
+# SL > SS, SS = SL, SS > SL
 n_comparisons[1:5]/n_dataset
 n_comparisons[6:10]/n_dataset
 n_comparisons[11:15]/n_dataset
@@ -555,26 +559,103 @@ ggplot_data <- melt(ggplot_data2, id.vars="dataset_id")
 ggplot_data$variable <- gsub("Freq.", "", ggplot_data$variable)
 ggplot_data <- subset(ggplot_data, ggplot_data$variable != "order")
 
+ggplot_data_taxa <- metadata[,c(1, 14)]
+ggplot_data <- merge(ggplot_data, ggplot_data_taxa)
+
+ggplot_data_label <- unique(ggplot_data[, c(1,4)])
+
+
 ## plot
-ggplot(ggplot_data, aes(fill=variable, y=value, x= dataset_id )) + 
+p1 <- ggplot(ggplot_data, aes(fill=variable, y=value, x= dataset_id )) + 
   geom_bar(position="fill", stat="identity")+ 
   scale_fill_manual(values = c("blue", "grey", "red"))+
   theme_few()+
   theme(axis.title.x=element_blank(),
         axis.text.x=element_blank(),
         axis.ticks.x=element_blank())+
-  theme(text=element_text(size=16,  family="serif"))+
+  theme(text=element_text(size=18,  family="serif"))+
   theme(legend.title=element_blank())+
-  ylab("Proportion of SLOSS comparisons in a dataset")
-  
+  ylab("Proportion of SLOSS comparisons in a dataset")+ theme(legend.position="top")#+ 
+  #ggtitle("Full dataset")+ theme(plot.title = element_text(hjust = 0.5))
+  #facet_wrap(~ taxa)#+
+  #theme(axis.text.x = element_text(angle = 90,hjust =0 ))
 
-# ggplot_data$taxa2 <- ggplot_data$taxa
-# ggplot_data$taxa2[ggplot_data$taxa2 == "invertebrates"] <- 1
-# ggplot_data$taxa2[ggplot_data$taxa2 == "mammals"] <- 2
-# ggplot_data$taxa2[ggplot_data$taxa2 == "plants"] <- 3
-# ggplot_data$taxa2[ggplot_data$taxa2 == "amphibians & reptiles"] <- 4
-# ggplot_data$taxa2[ggplot_data$taxa2 == "birds"] <- 5
-# ggplot_data$taxa2 <- as.numeric(ggplot_data$taxa2)
+p2 <- ggplot(ggplot_data[ggplot_data$taxa == "amphibians & reptiles",], aes(fill=variable, y=value, x= dataset_id )) + 
+  geom_bar(position="fill", stat="identity")+ 
+  scale_fill_manual(values = c("blue", "grey", "red"))+
+  theme_few()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+  theme(text=element_text(size=14,  family="serif"))+
+  theme(legend.title=element_blank())+
+  ylab("Proportion of SLOSS comparisons in a dataset")+ 
+  ggtitle("amphibians & reptiles") + theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="none", axis.title.y = element_blank())
+
+p3 <- ggplot(ggplot_data[ggplot_data$taxa == "mammals",], aes(fill=variable, y=value, x= dataset_id )) + 
+  geom_bar(position="fill", stat="identity")+ 
+  scale_fill_manual(values = c("blue", "grey", "red"))+
+  theme_few()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+  theme(text=element_text(size=14,  family="serif"))+
+  theme(legend.title=element_blank())+
+  ylab("Proportion of SLOSS comparisons in a dataset")+ 
+  ggtitle("mammals") + theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="none", axis.title.y = element_blank())
+#f
+
+p5 <- ggplot(ggplot_data[ggplot_data$taxa == "invertebrates",], aes(fill=variable, y=value, x= dataset_id )) + 
+  geom_bar(position="fill", stat="identity")+ 
+  scale_fill_manual(values = c("blue", "grey", "red"))+
+  theme_few()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+  theme(text=element_text(size=14,  family="serif"))+
+  theme(legend.title=element_blank())+
+  ylab("Proportion of SLOSS comparisons in a dataset")+ 
+  ggtitle("invertebrates") + theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="none", axis.title.y = element_blank())
+#f
+
+p4 <- ggplot(ggplot_data[ggplot_data$taxa == "birds",], aes(fill=variable, y=value, x= dataset_id )) + 
+  geom_bar(position="fill", stat="identity")+ 
+  scale_fill_manual(values = c("blue", "grey", "red"))+
+  theme_few()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+  theme(text=element_text(size=14,  family="serif"))+
+  theme(legend.title=element_blank())+
+  ylab("Proportion of SLOSS comparisons in a dataset")+ 
+  ggtitle("birds") + theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="none", axis.title.y = element_blank())
+#f
+
+p6 <- ggplot(ggplot_data[ggplot_data$taxa == "plants",], aes(fill=variable, y=value, x= dataset_id )) + 
+  geom_bar(position="fill", stat="identity")+ 
+  scale_fill_manual(values = c("blue", "grey", "red"))+
+  theme_few()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())+
+  theme(text=element_text(size=14,  family="serif"))+
+  theme(legend.title=element_blank())+
+  ylab("Proportion of SLOSS comparisons in a dataset")+ 
+  ggtitle("plants") + theme(plot.title = element_text(hjust = 0.5))+
+  theme(legend.position="none", axis.title.y = element_blank())
+
+library(ggpubr)
+ggarrange(p1, 
+          ggarrange (p2, p3, p4, p5, p6, nrow = 1),
+          ncol = 1,
+          heights = c(0.75, 0.25))
+
+ggsave("fig2.jpg", path = "C:\\Users\\feder\\OneDrive\\Desktop\\Riva Fahrig SLOSS #3\\figures", width = 3600, height = 2200, units = "px",  device='jpeg', dpi=300)
+
 
 
 #### analysis
@@ -737,8 +818,10 @@ model16 <- glmmTMB(SS ~ fly + evenness + (1|dataset_id), data = data_m, family =
 
 #bivariate, interactive
 model17 <- glmmTMB(SS ~ taxa * logrich + (1|dataset_id), data = data_m, family = "binomial")
-model18 <- glmmTMB(SS ~ taxa * temperature + (1|dataset_id), data = data_m, family = "binomial")
+model18 <- glmmTMB(SS ~ paste(data_m$taxa, data_m$temperature) + (1|dataset_id), data = data_m, family = "binomial")
 # model 18 does not converge; hack by hand-coding the categories
+
+
 model19 <- glmmTMB(SS ~ taxa * fly + (1|dataset_id), data = data_m, family = "binomial")
 model20 <- glmmTMB(SS ~ taxa * evenness + (1|dataset_id), data = data_m, family = "binomial")
 model21 <- glmmTMB(SS ~ logrich * temperature + (1|dataset_id), data = data_m, family = "binomial")
@@ -778,8 +861,17 @@ model_ranking <- model_ranking[, -5]
 model10 <- glmmTMB(SS ~ 0 + taxa + evenness + (1|dataset_id), data = data_m, family = "binomial")
 summary(model10)
 
-library(pscl)
-pR2(model10)
+# library(pscl)
+# pR2(model10)
+#model_taxaonly <- glmmTMB(SS ~ 0 + taxa  + (1|dataset_id), data = data_m, family = "binomial")
+
+
+
+library(MuMIn)
+r.squaredGLMM(model10, model1)
+
+
+
 
 
 plot_model <- ggpredict(model10, 
@@ -797,7 +889,7 @@ plot_model <- ggpredict(model10,
 #   
 
 levels(plot_model$group)
-plot_model$group <- factor(plot_model$group, levels = c("amphibians & reptiles", "mammals", "invertebrates", "birds", "plants"))
+plot_model$group <- factor(plot_model$group, levels = c("amphibians & reptiles", "mammals", "birds","invertebrates",  "plants"))
 
 plot(plot_model, #colors = "social", 
      ci = TRUE, 
@@ -817,6 +909,7 @@ plot(plot_model, #colors = "social",
   theme(text=element_text(size=16,  family="serif"))
 
 
+ggsave("fig3.jpg", path = "C:\\Users\\feder\\OneDrive\\Desktop\\Riva Fahrig SLOSS #3\\figures", width = 3000, height = 1500, units = "px",  device='jpeg', dpi=300)
 
 
 ## patches
@@ -826,7 +919,7 @@ names(patches)[1] <- "dataset_id"
 patches <- merge(patches, metadata[,c(1,14)], by = "dataset_id")
 patches$log10area <- log10(patches$frag_size_num)
 
-patches$taxa <- factor(patches$taxa, levels = c("amphibians & reptiles", "mammals", "invertebrates", "birds", "plants"))
+patches$taxa <- factor(patches$taxa, levels = c("amphibians & reptiles", "mammals", "birds", "invertebrates", "plants"))
 
 
 
@@ -860,9 +953,19 @@ ggplot(patches, aes(x=log10area, fill=taxa)) +
   scale_x_continuous(breaks = c(-2, -1, 0, 1, 2, 3, 4), limits =c(-3, 5),
                      labels = c("0.01","0.1","1","10","100","1.000","10.000"),
                      guide = guide_axis(n.dodge=2))+
-  xlab("Log10(Patch area)") + ylab("Number of patches")+
+  xlab("Patch area (ha)") + ylab("Number of patches")+
   theme(legend.position="none")+
-  theme(text=element_text(size=20,  family="serif"))
+  theme(text=element_text(size=18,  family="serif"))
+
+ggsave("fig4.jpg", path = "C:\\Users\\feder\\OneDrive\\Desktop\\Riva Fahrig SLOSS #3\\figures", width = 3000, height = 1500, units = "px",  device='jpeg', dpi=300)
+
+
+patches[patches$taxa == "amphibians & reptiles",]
+patches[patches$taxa == "mammals",]
+patches[patches$taxa == "birds",]
+patches[patches$taxa == "invertebrates",]
+patches[patches$taxa == "plants",]
+
 
 # library(ggpubr)
 # ggarrange(p1, p2)
